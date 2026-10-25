@@ -1,0 +1,323 @@
+<!doctype html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ELIX · Chemistry AI Companion</title>
+<style>
+* { box-sizing: border-box; }
+body {
+  margin: 0; font-family: 'Segoe UI', Arial, sans-serif; color: white;
+  background: radial-gradient(ellipse at top, #142a5c 0%, #0a0f26 60%, #040612 100%);
+  min-height: 100vh; overflow-x: hidden;
+}
+.wrap { max-width: 1200px; margin: auto; padding: 16px; }
+.top, .card {
+  background: rgba(8, 21, 45, 0.85);
+  border: 1px solid rgba(91, 120, 153, 0.4);
+  border-radius: 22px;
+  box-shadow: 0 15px 50px rgba(0,0,0,0.6);
+  backdrop-filter: blur(10px);
+}
+.top { padding: 14px 18px; margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center; }
+.top b { font-size: 16px; letter-spacing: 1px; }
+#status { 
+  font-size: 12px; letter-spacing: 2px; color: #65f2ef; 
+  padding: 4px 12px; border: 1px solid #65f2ef55; border-radius: 20px;
+  transition: all 0.3s;
+}
+#status.speaking { background: #65f2ef22; box-shadow: 0 0 15px #65f2ef88; }
+
+.grid { display: grid; grid-template-columns: 1fr 1.3fr; gap: 14px; }
+
+/* ---- AVATAR STAGE ---- */
+.avatar-stage {
+  min-height: 700px; display: flex; align-items: center; justify-content: center;
+  position: relative; overflow: hidden; padding: 20px;
+}
+/* Glow behind avatar */
+.avatar-stage::before {
+  content: ''; position: absolute; width: 70%; height: 70%;
+  background: radial-gradient(circle, #52eeea55 0%, transparent 70%);
+  border-radius: 50%; filter: blur(40px);
+  animation: pulseGlow 4s ease-in-out infinite;
+}
+@keyframes pulseGlow {
+  0%, 100% { transform: scale(1); opacity: 0.7; }
+  50% { transform: scale(1.15); opacity: 1; }
+}
+/* Floating avatar */
+.avatar-img {
+  width: 90%; max-height: 640px; object-fit: contain;
+  position: relative; z-index: 2;
+  animation: float 5s ease-in-out infinite;
+  transition: filter 0.3s, transform 0.3s;
+  filter: drop-shadow(0 10px 30px rgba(82, 238, 234, 0.3));
+}
+@keyframes float {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-15px) rotate(-1deg); }
+}
+/* Speaking animation - ELIX pulses and glows brighter */
+.avatar-img.speaking {
+  animation: speakPulse 0.4s ease-in-out infinite;
+  filter: drop-shadow(0 0 40px #65f2ef) brightness(1.15);
+}
+@keyframes speakPulse {
+  0%, 100% { transform: scale(1) translateY(0); }
+  50% { transform: scale(1.03) translateY(-8px); }
+}
+/* Thinking state */
+.avatar-img.thinking { filter: drop-shadow(0 0 25px #e98cff) hue-rotate(20deg); }
+
+/* Speaking rings */
+.speak-ring {
+  position: absolute; width: 250px; height: 250px;
+  border: 2px solid #65f2ef; border-radius: 50%;
+  opacity: 0; pointer-events: none; z-index: 1;
+}
+.avatar-img.speaking ~ .speak-ring {
+  animation: ringPulse 1.2s ease-out infinite;
+}
+@keyframes ringPulse {
+  0% { transform: scale(0.5); opacity: 0.8; }
+  100% { transform: scale(2.2); opacity: 0; }
+}
+
+/* ---- CHAT PANEL ---- */
+.panel { padding: 20px; display: flex; flex-direction: column; }
+h1 { 
+  margin: 0; font-size: 36px; 
+  background: linear-gradient(90deg, #65f2ef, #e98cff);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.muted { color: #b9cce0; font-size: 14px; margin: 6px 0 0; }
+
+.chat {
+  height: 320px; overflow-y: auto; margin: 14px 0;
+  display: flex; flex-direction: column; gap: 10px;
+  padding-right: 6px;
+}
+.chat::-webkit-scrollbar { width: 6px; }
+.chat::-webkit-scrollbar-thumb { background: #5b7899; border-radius: 3px; }
+.m { padding: 12px 16px; border-radius: 16px; max-width: 85%; font-size: 14px; line-height: 1.5; }
+.m.e { background: rgba(82, 238, 234, 0.08); border: 1px solid rgba(82, 238, 234, 0.25); }
+.m.u { align-self: flex-end; background: rgba(233, 140, 255, 0.12); border: 1px solid rgba(233, 140, 255, 0.3); }
+
+.chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.chip, button {
+  padding: 10px 14px; border-radius: 12px;
+  border: 1px solid #5b7899; background: rgba(255,255,255,0.06);
+  color: white; cursor: pointer; transition: all 0.2s;
+  font-size: 13px;
+}
+.chip:hover, button:hover { background: rgba(101, 242, 239, 0.15); border-color: #65f2ef; transform: translateY(-1px); }
+
+.controls { display: flex; gap: 8px; }
+input {
+  flex: 1; padding: 12px 16px; border-radius: 12px;
+  border: 1px solid #5b7899; background: rgba(255,255,255,0.06);
+  color: white; font-size: 14px; outline: none;
+}
+input:focus { border-color: #65f2ef; box-shadow: 0 0 0 3px rgba(101, 242, 239, 0.15); }
+
+/* ---- VISUAL GUIDE ---- */
+.guide {
+  margin-top: 14px; padding: 14px;
+  border: 1px solid #5b7899; border-radius: 16px;
+  background: rgba(2, 11, 27, 0.5);
+}
+#visual {
+  min-height: 200px; background: #020b1b; margin-top: 10px;
+  border-radius: 12px; display: flex; align-items: center; justify-content: center;
+  overflow: hidden; position: relative; padding: 10px;
+}
+#visual img { max-width: 100%; max-height: 300px; border-radius: 8px; animation: fadeIn 0.5s ease; }
+#visual .placeholder { color: #65f2ef; font-size: 13px; text-align: center; padding: 20px; }
+#visual .loader {
+  width: 40px; height: 40px; border: 3px solid #5b7899;
+  border-top-color: #65f2ef; border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+@keyframes spin { 100% { transform: rotate(360deg); } }
+@keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+
+@media(max-width: 800px) {
+  .grid { grid-template-columns: 1fr; }
+  .avatar-stage { min-height: 420px; }
+  h1 { font-size: 28px; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <b>◉ ELIX · Chemistry AI Companion</b>
+    <span id="status">READY</span>
+  </div>
+
+  <div class="grid">
+    <!-- ELIX AVATAR STAGE -->
+    <section class="card avatar-stage">
+      <div class="speak-ring"></div>
+      <img id="elix-face" class="avatar-img" src="elix.png" alt="ELIX">
+    </section>
+
+    <!-- CHAT PANEL -->
+    <section class="card panel">
+      <h1>Meet ELIX</h1>
+      <p class="muted">Your voice-enabled virtual chemistry buddy.</p>
+
+      <div id="chat" class="chat">
+        <div class="m e">Hello! I'm ELIX 👋 Tap the 🎙 button and ask me about HPLC, GC, NMR, KF or any analytical troubleshooting.</div>
+      </div>
+
+      <div class="chips">
+        <span class="chip" data-q="Explain HPLC flow path in detail">HPLC</span>
+        <span class="chip" data-q="Explain NMR shimming with a diagram">NMR</span>
+        <span class="chip" data-q="Troubleshoot noisy GC baseline">GC</span>
+        <span class="chip" data-q="Explain Karl Fischer titration">KF</span>
+      </div>
+
+      <div class="controls">
+        <input id="q" placeholder="Ask ELIX anything…">
+        <button id="ask">Ask</button>
+        <button id="voice" title="Voice input">🎙</button>
+      </div>
+
+      <div class="guide">
+        <b id="title">Visual Guidance</b>
+        <div class="muted" style="font-size:12px">AI-generated diagram for your question.</div>
+        <div id="visual"><div class="placeholder">Ask a question to generate a visual diagram</div></div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script>
+// ⚠️ Change this if your image name is different
+const ELIX_IMAGE_URL = "elix.png";
+document.getElementById('elix-face').src = ELIX_IMAGE_URL;
+
+// ⚠️ Server address
+const SERVER_URL = "http://127.0.0.1:5000";
+
+const chat = document.querySelector('#chat');
+const q = document.querySelector('#q');
+const status = document.querySelector('#status');
+const visual = document.querySelector('#visual');
+const title = document.querySelector('#title');
+const avatar = document.querySelector('#elix-face');
+
+// ---------- VOICE OUTPUT (MOUTH) ----------
+function speak(text) {
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.lang = 'en-IN';
+  utterance.rate = 1.0;
+  utterance.pitch = 1.15;
+
+  // Trigger speaking animation
+  utterance.onstart = () => {
+    avatar.classList.add('speaking');
+    status.classList.add('speaking');
+    status.textContent = 'SPEAKING…';
+  };
+  utterance.onend = () => {
+    avatar.classList.remove('speaking');
+    status.classList.remove('speaking');
+    status.textContent = 'READY';
+  };
+
+  window.speechSynthesis.speak(utterance);
+}
+
+// ---------- ADD CHAT MESSAGE ----------
+function add(text, cls = 'e') {
+  const x = document.createElement('div');
+  x.className = 'm ' + cls;
+  x.textContent = text;
+  chat.appendChild(x);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+// ---------- GENERATE VISUAL DIAGRAM ----------
+async function generateVisual(topic) {
+  // Pollinations.ai - FREE AI image generator, no API key needed!
+  const prompt = encodeURIComponent(
+    `clean educational chemistry diagram of ${topic}, textbook style, white background, labeled arrows, high contrast, scientific illustration`
+  );
+  const imageUrl = `https://image.pollinations.ai/prompt/${prompt}?width=800&height=500&nologo=true`;
+
+  visual.innerHTML = '<div class="loader"></div>';
+
+  // Preload image to check it loads
+  const img = new Image();
+  img.onload = () => {
+    visual.innerHTML = '';
+    visual.appendChild(img);
+    img.style.maxWidth = '100%';
+    img.style.maxHeight = '300px';
+    img.style.borderRadius = '8px';
+  };
+  img.onerror = () => {
+    visual.innerHTML = '<div class="placeholder">Could not generate image. Try again.</div>';
+  };
+  img.src = imageUrl;
+  img.alt = topic + ' diagram';
+}
+
+// ---------- MAIN FUNCTION ----------
+async function go() {
+  const s = q.value.trim();
+  if (!s) return;
+
+  add(s, 'u');
+  q.value = '';
+  status.textContent = 'THINKING…';
+  avatar.classList.add('thinking');
+
+  try {
+    const response = await fetch(SERVER_URL + '/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: s })
+    });
+    const data = await response.json();
+    avatar.classList.remove('thinking');
+
+    add(data.reply);
+    speak(data.reply);
+
+    // Generate AI visual
+    const topic = s.replace(/^(what is|explain|show|tell me about)\s*/i, '').trim();
+    title.textContent = topic.charAt(0).toUpperCase() + topic.slice(1);
+    generateVisual(topic);
+  } catch (error) {
+    console.error(error);
+    avatar.classList.remove('thinking');
+    add("Error connecting to ELIX. Is the server running?", 'e');
+    status.textContent = 'ERROR';
+  }
+}
+
+// ---------- EVENT LISTENERS ----------
+document.querySelector('#ask').onclick = go;
+q.onkeydown = e => { if (e.key === 'Enter') go(); };
+document.querySelectorAll('.chip').forEach(x => x.onclick = () => { q.value = x.dataset.q; go(); });
+
+// ---------- VOICE INPUT (EARS) ----------
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+if (SR) {
+  const r = new SR();
+  r.lang = 'en-IN';
+  r.onstart = () => { status.textContent = 'LISTENING…'; status.classList.add('speaking'); };
+  r.onresult = e => { q.value = e.results[0][0].transcript; go(); };
+  r.onend = () => { status.classList.remove('speaking'); status.textContent = 'READY'; };
+  document.querySelector('#voice').onclick = () => r.start();
+} else {
+  document.querySelector('#voice').onclick = () => add('Voice input not supported in this browser.', 'e');
+}
+</script>
+</body>
+</html>
