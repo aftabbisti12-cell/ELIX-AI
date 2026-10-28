@@ -1,13 +1,12 @@
 from flask import Flask, request, jsonify, send_from_directory
-from flask import Flask, request, jsonify
 from flask_cors import CORS
 from groq import Groq
+import os
 
 app = Flask(__name__)
 CORS(app)  # Allows your HTML file to talk to this server
 
-# REPLACE THIS WITH YOUR ACTUAL GROQ API KEY
-import os
+# The API key is pulled securely from Render's Environment Variables
 client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 
 SYSTEM_PROMPT = """
@@ -15,9 +14,11 @@ You are ELIX, a helpful chemistry AI guide for new employees.
 Only answer chemistry, lab safety, and equipment questions. 
 Keep answers short, professional, and friendly.
 """
+
 @app.route('/')
 def serve_home():
     return send_from_directory('.', 'index.html')
+
 @app.route('/chat', methods=['POST'])
 def chat():
     data = request.json
