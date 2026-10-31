@@ -21,7 +21,6 @@ def serve_home():
     @app.route('/<path:filename>')
 def serve_static(filename):
     return send_from_directory('.', filename)
-
 @app.route('/chat', methods=['POST'])
 def chat():
     data = request.json
