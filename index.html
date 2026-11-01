@@ -204,6 +204,7 @@ elixFace.src = ELIX_IMAGE_URL;
 const chatContainer = document.getElementById('chat');
 const inputField = document.getElementById('q');
 const askButton = document.getElementById('ask');
+const voiceButton = document.getElementById('voice');
 const statusBadge = document.getElementById('status');
 
 // 3. Function to add messages to the screen
@@ -215,7 +216,30 @@ function addMessage(text, sender) {
     chatContainer.scrollTop = chatContainer.scrollHeight;
 }
 
-// 4. Function to send message to Python Backend
+// 4. Text-to-Speech (ELIX Speaking)
+function speakText(text) {
+    if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel(); // Stop any current speech
+        const utterance = new SpeechSynthesisUtterance(text);
+        
+        // Visual effects while speaking
+        utterance.onstart = () => {
+            statusBadge.textContent = "SPEAKING";
+            statusBadge.classList.add('speaking');
+            elixFace.classList.add('speaking');
+        };
+        
+        utterance.onend = () => {
+            statusBadge.textContent = "READY";
+            statusBadge.classList.remove('speaking');
+            elixFace.classList.remove('speaking');
+        };
+
+        window.speechSynthesis.speak(utterance);
+    }
+}
+
+// 5. Function to send message to Python Backend
 async function sendMessage() {
     const text = inputField.value.trim();
     if (!text) return;
@@ -237,29 +261,59 @@ async function sendMessage() {
         const data = await response.json();
         addMessage(data.reply, 'e');
         
+        // Make ELIX speak the reply!
+        speakText(data.reply);
+        
     } catch (error) {
         addMessage("Connection error. Please try again.", 'e');
         console.error(error);
     } finally {
-        statusBadge.textContent = "READY";
         statusBadge.style.color = "#65f2ef";
         elixFace.classList.remove('thinking');
     }
 }
 
-// 5. Click listeners
+// 6. Click listeners
 askButton.addEventListener('click', sendMessage);
 inputField.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') sendMessage();
 });
 
-// 6. Chips listener
+// 7. Chips listener
 document.querySelectorAll('.chip').forEach(chip => {
     chip.addEventListener('click', () => {
         inputField.value = chip.getAttribute('data-q');
         sendMessage();
     });
 });
+
+// 8. Microphone (Speech-to-Text)
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+if (SpeechRecognition) {
+    const recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = false;
+
+    voiceButton.addEventListener('click', () => {
+        recognition.start();
+        statusBadge.textContent = "LISTENING";
+        statusBadge.style.color = "#ff4d4d";
+    });
+
+    recognition.onresult = (event) => {
+        const transcript = event.results[0][0].transcript;
+        inputField.value = transcript;
+        statusBadge.textContent = "READY";
+        statusBadge.style.color = "#65f2ef";
+        sendMessage(); // Automatically send after speaking
+    };
+
+    recognition.onerror = (event) => {
+        console.error("Mic error:", event.error);
+        statusBadge.textContent = "READY";
+        statusBadge.style.color = "#65f2ef";
+    };
+} else {
+    voiceButton.style.display = 'none'; // Hide mic if browser doesn't support it
+}
 </script>
-</body>
-</html>
